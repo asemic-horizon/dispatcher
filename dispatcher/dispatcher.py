@@ -28,7 +28,7 @@ class DispatcherEnum(Enum):
 def Dispatcher(name = None, **members):
     from hashlib import md5
     if name is None:
-        name = str(md5(str(members).encode()).hexdigest()[:6])
+        name = md5(str(members).encode()).hexdigest()[:6]
     attrs = {member.upper():member for member in members}
     funcs = {member.upper():func for member, func in members.items()}
     cls = MappedEnum(name,attrs)

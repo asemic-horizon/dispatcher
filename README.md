@@ -1,19 +1,32 @@
 # ͱ Start with the "why" 
 
+DispatchEnum is *the* Pythonic way to deal with the "strategy in config" pattern, where
+we want choices in implementation details ("strategies") to be available outside 
+Python code proper.
 
-Consider this config file:
+Consider this cfg file:
 ```yaml
 aggregation: mean
+length: square
 ```
+
+We see this typically when we want to allow for different aggregating functions (mean, median...) to be
+used in a functionality that meaningfully accepts them.
 
 ## Not good
 
 ```py
-from numpy import mean, median
+from numpy import mean, median, abs
 import yaml
 
-config = yaml.safe_load('aggregation: mean')
-runner = eval(config['aggregation']) # OUCH executable YAML
+square = lambda x: x*x
+
+def excess(lst, cfg):
+    agg = eval(cfg['aggregation'])(lst) # OUCH executable YAML
+    return [cfg['length'](val - agg) for val in lst] # OOF right in the feels
+
+cfg = yaml.safe_load(config.yaml)
+print(excess([1,2,3], cfg)) # prints [1,0,1] 
 ```
 
 ## Much better, but still hella wobbly
@@ -21,32 +34,50 @@ runner = eval(config['aggregation']) # OUCH executable YAML
 ```py
 import numpy as np, yaml
 
-dispatcher = {"mean": np.mean, "median": np.median}
+agg_dispatcher = {"mean": np.mean, "median": np.median}
+len_dispatcher = {"square": lambda x: x*x, "abs": np.abs}
 
-config = yaml.safe_load('aggregation: mean')
-runner = dispatcher[config['aggregation']]
+def excess(lst, cfg):
+    agg = agg_dispatcher[cfg['aggregation']](lst)
+    return [len_dispatcher[cfg['length']](val - agg) for val in lst]
+cfg = yaml.safe_load(config.yaml)
+print(excess([1,2,3], cfg)) # same as above 
 ```
 
-## Tidier
+## Safer but drowning in boilerplate
 
 ```py
 import numpy as np, yaml
 from pydantic import BaseModel, field_validator
 
-dispatcher = {"mean": np.mean, "median": np.median}
+agg_dispatcher = {"mean": np.mean, "median": np.median}
+len_dispatcher = {"square": lambda x: x*x, "abs": np.abs}
 
 class Config(BaseModel):
     aggregation: str
+    length: str
 
     @field_validator('aggregation')
     @classmethod
     def agg_must_be_valid(cls, v: str) -> str:
-        if v not in dispatcher:
+        if v not in agg_dispatcher:
             raise ValueError('Invalid aggregation')
         return v.title()
 
-config = Config(yaml.safe_load('aggregation: mean'))
-runner = dispatcher[config.aggregation]
+    @field_validator('length')
+    @classmethod
+    def len_must_be_valid(cls, v: str) -> str:
+        if v not in len_dispatcher:
+            raise ValueError('Invalid length')
+        return v.title()
+
+def excess(lst, cfg):
+    agg = agg_dispatcher[cfg.aggregation](lst)
+    return [len_dispatcher[cfg.length](val - agg) for val in lst]
+
+cfg = yaml.safe_load(config.yaml)
+print(excess([1,2,3], cfg)) # same as above 
+
 ```
 
 ## Very much better
@@ -56,19 +87,18 @@ from pydantic import BaseModel
 from dispatcher import Dispatcher
 
 # shortcut utility that creates a DispatchEnum object
-Aggregation = Dispatcher(
+AggregationStrategy = Dispatcher(
     mean = np.mean,
     median = np.median
 )
 class Config:
-    aggregation: Aggregation = Aggregation.MEAN
+    aggregation: AggregationStrategy = AggregationStrategy.MEAN
 
-config = Config(yaml.safe_load('aggregation: mean'))
+cfg = Config(yaml.safe_load(config.yaml))
+def excess(lst, cfg):
+    agg = cfg.aggregation(lst)   # ding ding ding ding
+    return [cfg.length(val - agg) for val in lst]
 
-runner = config.aggregation # ding
-# now the "aggregation" YAML field is parsed by pydantic into 
-# an Aggregation object derived from an Enum that's also callable!
-runner0 = lambda xs: config.aggregation(xs) # ding ding ding ding.
 ```
 
 # The "what"
@@ -85,8 +115,8 @@ class Parity(Enum):
 class Parser(BaseModel):
      check_parity: Parity
 
-config = Parser({"check_parity": "odd" })
-print(config.check_parity) # prints Parity.ODD
+cfg = Parser({"check_parity": "odd" })
+print(cfg.check_parity) # prints Parity.ODD
 ```
 
 With `DispatchEnum` we're able to assign an additional property to each Enum member:
@@ -96,11 +126,7 @@ class Parity(DispatchEnum):
     ODD = "odd"
     EVEN = "even"
 
-Parity.assign(Parity.ODD, lambda x: x % 2 == 1)
-Parity.assign(Parity.EVEN, lambda x: x % 2 == 0)
-# or
 Parity.from_dict({"ODD": lambda x: x % 2 == 1, "EVEN": lambda x: x % 2 == 0})
-
 print(Parity.ODD(2)) # prints False
 ```
 
@@ -110,16 +136,17 @@ and an `Enum` (enabling Pydantic goodness).
 For further convenience, the `Dispatcher` function creates a DispatchEnum filling in member names:
 
 ```py
-Aggregation = Dispatcher(
+AggregationStrategy = Dispatcher(
     mean = np.mean,
     median = np.median
 )
-# does the same as 
-
-class Aggregation(DispatchEnum):
+```
+which is shorthand for 
+```py
+class AggregationStrategy(DispatchEnum):
     MEAN: "mean"
     MEDIAN: "median"
-Aggregation.from_dict({"mean": np.mean, "median": np.median})
+AggregationStrategy.from_dict({"mean": np.mean, "median": np.median})
 ```
 
 # Installation
