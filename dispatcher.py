@@ -25,12 +25,12 @@ class DispatcherEnum(Enum):
     def __call__(self,*args,**kwargs):
         return self.call(*args,**kwargs)
 
-def Dispatcher(member_dict, name = None):
+def Dispatcher(name = None, **members):
     from hashlib import md5
     if name is None:
-        name = str(md5(str(member_dict).encode()).hexdigest()[:6])
-    attrs = {member.upper():member for member in member_dict}
-    funcs = {member.upper():func for member, func in member_dict.items()}
+        name = str(md5(str(members).encode()).hexdigest()[:6])
+    attrs = {member.upper():member for member in members}
+    funcs = {member.upper():func for member, func in members.items()}
     cls = MappedEnum(name,attrs)
     cls.from_dict(funcs)
     return cls

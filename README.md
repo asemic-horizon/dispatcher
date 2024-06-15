@@ -56,8 +56,10 @@ from pydantic import BaseModel
 from dispatcher import Dispatcher
 
 # shortcut utility that creates a DispatchEnum object
-Aggregation = Dispatcher({"mean": np.mean, "median": np.median})
-
+Aggregation = Dispatcher(
+    mean = np.mean,
+    median = np.median
+)
 class Config:
     aggregation: Aggregation = Aggregation.MEAN
 
@@ -108,7 +110,10 @@ and an `Enum` (enabling Pydantic goodness).
 For further convenience, the `Dispatcher` function creates a DispatchEnum filling in member names:
 
 ```py
-Aggregation = Dispatcher({"mean": np.mean, "median": np.median})
+Aggregation = Dispatcher(
+    mean = np.mean,
+    median = np.median
+)
 # does the same as 
 
 class Aggregation(DispatchEnum):
