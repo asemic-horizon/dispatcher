@@ -16,14 +16,14 @@ used in a functionality that meaningfully accepts them.
 ## Not good
 
 ```py
-from numpy import mean, median, abs
+from numpy import mean, median, abs # rock the global namespace!
 import yaml
 
 square = lambda x: x*x
 
 def excess(lst, cfg):
     agg = eval(cfg['aggregation'])(lst) # OUCH executable YAML
-    return [cfg['length'](val - agg) for val in lst] # OOF right in the feels
+    return [eval(cfg['length'])(val - agg) for val in lst] # OOF right in the feels
 
 cfg = yaml.safe_load(config.yaml)
 print(excess([1,2,3], cfg)) # prints [1,0,1] 
@@ -44,7 +44,7 @@ cfg = yaml.safe_load(config.yaml)
 print(excess([1,2,3], cfg)) # same as above 
 ```
 
-## Safer but drowning in boilerplate
+## Safer with Pydantic but drowning in boilerplate
 
 ```py
 import numpy as np, yaml
@@ -62,14 +62,14 @@ class Config(BaseModel):
     def agg_must_be_valid(cls, v: str) -> str:
         if v not in agg_dispatcher:
             raise ValueError('Invalid aggregation')
-        return v.title()
+        return v
 
     @field_validator('length')
     @classmethod
     def len_must_be_valid(cls, v: str) -> str:
         if v not in len_dispatcher:
             raise ValueError('Invalid length')
-        return v.title()
+        return v
 
 def excess(lst, cfg):
     agg = agg_dispatcher[cfg.aggregation](lst)
@@ -80,7 +80,7 @@ print(excess([1,2,3], cfg)) # same as above
 
 ```
 
-## Very much better
+## Class and quality
 ```py
 import numpy as np, yaml
 from pydantic import BaseModel
@@ -91,8 +91,13 @@ AggregationStrategy = Dispatcher(
     mean = np.mean,
     median = np.median
 )
+LengthStrategy = Dispatcher(
+    square = lambda x: x*x,
+    abs = np.abs
+) 
 class Config:
     aggregation: AggregationStrategy = AggregationStrategy.MEAN
+    length:  LengthStrategy 
 
 cfg = Config(yaml.safe_load(config.yaml))
 def excess(lst, cfg):
