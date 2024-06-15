@@ -81,10 +81,10 @@ class Parity(Enum):
     EVEN = "even"
 
 class Parser(BaseModel):
-     : Parity
+     check_parity: Parity
 
-config = Parser({"": "odd" })
-print(config.) # prints Parity.ODD
+config = Parser({"check_parity": "odd" })
+print(config.check_parity) # prints Parity.ODD
 ```
 
 With `DispatchEnum` we're able to assign an additional property to each Enum member:
